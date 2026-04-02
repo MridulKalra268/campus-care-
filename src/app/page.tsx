@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import Image from 'next/image'
 
 export default function Home() {
@@ -16,8 +17,19 @@ export default function Home() {
                 CampusCare is an AI-powered wellbeing assistant for universities. It listens, guides, and connects students to resources—safely and affordably.
               </p>
               <div className="mt-8 flex items-center gap-3">
-                <a href="#get-started" className="rounded-full bg-blue-600 text-white px-5 py-3 text-sm font-medium shadow hover:bg-blue-700 transition-colors">Get started</a>
-                <a href="#features" className="rounded-full border px-5 py-3 text-sm font-medium border-black/10 dark:border-white/15 hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors">Learn more</a>
+                {/* ✅ Fixed: "Get started" scrolls to the CTA section */}
+                <a
+                  href="#get-started"
+                  className="rounded-full bg-blue-600 text-white px-5 py-3 text-sm font-medium shadow hover:bg-blue-700 transition-colors"
+                >
+                  Get started
+                </a>
+                <a
+                  href="#features"
+                  className="rounded-full border px-5 py-3 text-sm font-medium border-black/10 dark:border-white/15 hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors"
+                >
+                  Learn more
+                </a>
               </div>
               <div className="mt-6 text-xs text-foreground/60">Free to try • Works on web • Private by design</div>
             </div>
@@ -61,7 +73,6 @@ export default function Home() {
         </div>
       </section>
 
-
       {/* Urgent help (Contact options) */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mt-2 grid sm:grid-cols-2 gap-4">
@@ -70,7 +81,6 @@ export default function Home() {
             className="rounded-xl border border-black/10 dark:border-white/10 p-5 bg-background/60 backdrop-blur hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors"
             aria-label="Call India Suicide Hotline at 9152987821"
           >
-
             <h3 className="font-semibold">India Suicide Hotline</h3>
             <p className="mt-1 text-lg font-mono tracking-wide">9152987821</p>
           </a>
@@ -79,7 +89,6 @@ export default function Home() {
             className="rounded-xl border border-black/10 dark:border-white/10 p-5 bg-background/60 backdrop-blur hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors"
             aria-label="Telemanas Hotline"
           >
-
             <h3 className="font-semibold">Telemanas Hotline</h3>
             <p className="mt-1 text-lg font-mono tracking-wide">1-800 891 4416</p>
           </a>
@@ -95,7 +104,13 @@ export default function Home() {
               <p className="mt-2 text-white/85">Start with the basic chat and add features as you go.</p>
             </div>
             <div className="flex md:justify-end">
-              <a href="#" className="rounded-full bg-white text-blue-700 px-6 py-3 text-sm font-medium hover:bg-white/90 transition-colors">Open chat</a>
+              {/* ✅ Fixed: "Open chat" now navigates to /chat */}
+              <Link
+                href="/chat"
+                className="rounded-full bg-white text-blue-700 px-6 py-3 text-sm font-medium hover:bg-white/90 transition-colors"
+              >
+                Open chat
+              </Link>
             </div>
           </div>
         </div>

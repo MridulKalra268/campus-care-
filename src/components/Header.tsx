@@ -11,14 +11,13 @@ export default function Header() {
         </Link>
         <nav className="hidden sm:flex items-center gap-6 text-sm text-foreground/80">
           <Link className="hover:text-foreground transition-colors" href="/">Home</Link>
-          <a
+          {/* ✅ Fixed: Chat now links to internal /chat page */}
+          <Link
             className="hover:text-foreground transition-colors"
-            href="https://ai-agentchatbot.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/chat"
           >
             Chat
-          </a>
+          </Link>
           <a
             className="hover:text-foreground transition-colors"
             href="https://campuscare-alpha.vercel.app/"
@@ -45,7 +44,11 @@ export default function Header() {
           </a>
         </nav>
         <div className="flex items-center gap-3">
-          <a href="#get-started" className="rounded-full border px-4 py-2 text-sm border-black/10 dark:border-white/15 hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors">
+          {/* ✅ Fixed: "Get started" scrolls to the CTA section on the home page */}
+          <a
+            href="/#get-started"
+            className="rounded-full border px-4 py-2 text-sm border-black/10 dark:border-white/15 hover:bg-black/[.04] dark:hover:bg-white/[.06] transition-colors"
+          >
             Get started
           </a>
         </div>
