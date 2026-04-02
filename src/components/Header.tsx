@@ -11,37 +11,10 @@ export default function Header() {
         </Link>
         <nav className="hidden sm:flex items-center gap-6 text-sm text-foreground/80">
           <Link className="hover:text-foreground transition-colors" href="/">Home</Link>
-          {/* ✅ Fixed: Chat now links to internal /chat page */}
-          <Link
-            className="hover:text-foreground transition-colors"
-            href="/chat"
-          >
-            Chat
-          </Link>
-          <a
-            className="hover:text-foreground transition-colors"
-            href="https://campuscare-alpha.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Wellness Media Hub
-          </a>
-          <a
-            className="hover:text-foreground transition-colors"
-            href="https://student-and-dashboard.vercel.app/dashboard"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Student Dashboard
-          </a>
-          <a
-            className="hover:text-foreground transition-colors"
-            href="https://student-and-dashboard.vercel.app/student_matching"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Student Matching
-          </a>
+          <Link className="hover:text-foreground transition-colors" href="/chat">Chat</Link>
+          <Link className="hover:text-foreground transition-colors" href="/media">Wellness Media Hub</Link>
+          <Link className="hover:text-foreground transition-colors" href="/dashboard">Student Dashboard</Link>
+          <Link className="hover:text-foreground transition-colors" href="/student_matching">Student Matching</Link>
         </nav>
         <div className="flex items-center gap-3">
           {/* ✅ Fixed: "Get started" scrolls to the CTA section on the home page */}
