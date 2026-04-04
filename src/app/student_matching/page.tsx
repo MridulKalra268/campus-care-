@@ -1,111 +1,297 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/authContext";
 
-// ── Fake student pool ──────────────────────────────────────────────────────
-const ALL_STUDENTS = [
-  {
-    id: 1, name: "Priya Nair", avatar: "PN", major: "Psychology", year: "2nd Year",
-    tags: ["Listening", "Anxiety Support", "Study Buddy", "Yoga"],
-    bio: "I love talking through problems and helping others feel heard. Yoga and journaling keep me grounded.",
-    mood: "😊", online: true, matchScore: 94, location: "Hostel A",
-    interests: ["mental health", "meditation", "reading"],
-    openTo: ["peer support", "study groups", "casual chats"],
-  },
-  {
-    id: 2, name: "Rahul Verma", avatar: "RV", major: "Computer Science", year: "3rd Year",
-    tags: ["Study Buddy", "Coding", "Stress Management"],
-    bio: "Final-year CS student who understands exam pressure. Happy to study together or just vent.",
-    mood: "😌", online: true, matchScore: 88, location: "Library",
-    interests: ["competitive programming", "chess", "lo-fi music"],
-    openTo: ["study groups", "project partners", "peer support"],
-  },
-  {
-    id: 3, name: "Sneha Kulkarni", avatar: "SK", major: "Economics", year: "4th Year",
-    tags: ["Career Advice", "Wellbeing", "Listening"],
-    bio: "Navigated placement season stress — here to share what worked. Open to coffee chats anytime.",
-    mood: "🌟", online: false, matchScore: 82, location: "Main Block",
-    interests: ["finance", "journaling", "podcasts"],
-    openTo: ["mentorship", "peer support", "casual chats"],
-  },
-  {
-    id: 4, name: "Aditya Bhatt", avatar: "AB", major: "Mechanical Engg", year: "2nd Year",
-    tags: ["Study Buddy", "Sports", "Motivation"],
-    bio: "Gym and sport help me manage stress. Looking for workout partners and positive energy.",
-    mood: "💪", online: true, matchScore: 76, location: "Sports Complex",
-    interests: ["football", "fitness", "mechanical design"],
-    openTo: ["workout partners", "study groups", "sports"],
-  },
-  {
-    id: 5, name: "Meera Iyer", avatar: "MI", major: "Biotechnology", year: "1st Year",
-    tags: ["Homesickness", "Listening", "Arts & Crafts"],
-    bio: "New to campus and adjusting. Looking for kind people to explore the city and share meals with.",
-    mood: "🙂", online: false, matchScore: 71, location: "New Hostel",
-    interests: ["painting", "cooking", "nature walks"],
-    openTo: ["peer support", "casual chats", "exploring campus"],
-  },
-  {
-    id: 6, name: "Kabir Singh", avatar: "KS", major: "Physics", year: "3rd Year",
-    tags: ["Meditation", "Deep Talks", "Anxiety Support"],
-    bio: "Introvert who loves deep conversations over chai. Mindfulness changed how I handle academic pressure.",
-    mood: "🧘", online: true, matchScore: 68, location: "Research Wing",
-    interests: ["quantum physics", "philosophy", "tea brewing"],
-    openTo: ["peer support", "deep conversations", "study buddy"],
-  },
-  {
-    id: 7, name: "Divya Menon", avatar: "DM", major: "Civil Engineering", year: "4th Year",
-    tags: ["Leadership", "Motivation", "Career Advice"],
-    bio: "Former student council president. I thrive on helping others find direction and confidence.",
-    mood: "✨", online: false, matchScore: 65, location: "Admin Block",
-    interests: ["urban planning", "debate", "travelling"],
-    openTo: ["mentorship", "career guidance", "peer support"],
-  },
-  {
-    id: 8, name: "Rohan Das", avatar: "RD", major: "Chemical Engineering", year: "2nd Year",
-    tags: ["Music", "Study Buddy", "Stress Relief"],
-    bio: "Music is my therapy. Playing guitar between study sessions keeps me balanced.",
-    mood: "🎵", online: true, matchScore: 61, location: "Hostel C",
-    interests: ["guitar", "organic chemistry", "hiking"],
-    openTo: ["jam sessions", "study groups", "casual chats"],
-  },
-  {
-    id: 9, name: "Tanvi Joshi", avatar: "TJ", major: "Mathematics", year: "1st Year",
-    tags: ["Study Buddy", "Anxiety Support", "Listening"],
-    bio: "Adjusting to the pace of college math. Looking for patient study partners and friends.",
-    mood: "📖", online: false, matchScore: 58, location: "Maths Dept",
-    interests: ["puzzles", "origami", "baking"],
-    openTo: ["study groups", "peer support", "campus tours"],
-  },
-];
+type Student = {
+  id: string;
+  name: string;
+  avatar: string;
+  major: string;
+  year: string;
+  tags: string[];
+  bio: string;
+  mood: string;
+  online: boolean;
+  matchScore: number;
+  location: string;
+  interests: string[];
+  openTo: string[];
+  connectionStatus: 'none' | 'pending' | 'connected';
+};
 
-const FILTERS = ["All", "Online", "Peer Support", "Study Buddy", "Listening", "Anxiety Support", "Career Advice"];
+type MatchingData = {
+  students: Student[];
+  totalOnline: number;
+  total: number;
+  connected: number;
+};
 
-// ── Mistral hook ───────────────────────────────────────────────────────────
-async function getMistralCompatibility(student: typeof ALL_STUDENTS[0]): Promise<string> {
-  const res = await fetch("/api/v1/ai/insight", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      prompt: `You are a peer-matching assistant for a university wellbeing app.
-Student A: Arjun Sharma, 3rd year CS, struggles with exam anxiety and feeling overwhelmed.
-Student B: ${student.name}, ${student.year} ${student.major}, interests: ${student.interests.join(", ")}, open to: ${student.openTo.join(", ")}. Bio: "${student.bio}"
+const FILTERS = ['All', 'Online', 'Peer Support', 'Study Buddy', 'Listening', 'Anxiety Support', 'Career Advice'];
+
+export default function StudentMatchingPage() {
+  const router = useRouter();
+  const { user, session, profile, loading: authLoading } = useAuth();
+  const [data, setData] = useState<MatchingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('All');
+  const [search, setSearch] = useState('');
+  const [aiModal, setAiModal] = useState<{ student: Student; text: string; loading: boolean } | null>(null);
+  const [connecting, setConnecting] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!authLoading && !user) router.push('/auth');
+  }, [authLoading, user, router]);
+
+  const fetchStudents = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (filter !== 'All') params.set('filter', filter);
+      if (search) params.set('search', search);
+
+      const res = await fetch(`/api/v1/matching?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as { data?: MatchingData; error?: string };
+      if (json.error) throw new Error(json.error);
+      setData(json.data ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load students');
+    } finally {
+      setLoading(false);
+    }
+  }, [session?.access_token, filter, search]);
+
+  useEffect(() => {
+    if (session?.access_token) {
+      const t = setTimeout(fetchStudents, search ? 400 : 0);
+      return () => clearTimeout(t);
+    }
+  }, [fetchStudents, session?.access_token, filter, search]);
+
+  const handleConnect = async (student: Student) => {
+    if (!session?.access_token) return;
+    setConnecting(prev => new Set([...prev, student.id]));
+
+    try {
+      await fetch('/api/v1/matching', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ to_user_id: student.id }),
+      });
+
+      // Update local state
+      setData(prev => prev ? {
+        ...prev,
+        students: prev.students.map(s =>
+          s.id === student.id ? { ...s, connectionStatus: 'connected' } : s
+        ),
+        connected: prev.connected + 1,
+      } : prev);
+    } finally {
+      setConnecting(prev => {
+        const next = new Set(prev);
+        next.delete(student.id);
+        return next;
+      });
+    }
+  };
+
+  const handleAIMatch = async (student: Student) => {
+    setAiModal({ student, text: '', loading: true });
+    try {
+      const res = await fetch('/api/v1/ai/insight', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `You are a peer-matching assistant for a university wellbeing app.
+Student A: ${profile?.display_name || 'A student'}, ${profile?.year || ''} ${profile?.major || ''}.
+Student B: ${student.name}, ${student.year} ${student.major}, interests: ${student.interests.join(', ')}, open to: ${student.openTo.join(', ')}. Bio: "${student.bio}"
 Write 2 short sentences explaining why these two students would be a good peer match and what they could offer each other. Be specific and warm.`,
-    }),
-  });
-  const json = await res.json() as { data?: { text?: string } };
-  return json.data?.text ?? "These students share complementary strengths and could support each other through their university journey.";
-}
+        }),
+      });
+      const json = await res.json() as { data?: { text?: string } };
+      setAiModal(prev => prev ? { ...prev, text: json.data?.text || 'Great potential match!', loading: false } : null);
+    } catch {
+      setAiModal(prev => prev ? { ...prev, text: 'These students share complementary strengths and could support each other well.', loading: false } : null);
+    }
+  };
 
-// ── Card component ─────────────────────────────────────────────────────────
-function StudentCard({ student, onConnect, onAIMatch }: {
-  student: typeof ALL_STUDENTS[0];
-  onConnect: (id: number) => void;
-  onAIMatch: (student: typeof ALL_STUDENTS[0]) => void;
-}) {
-  const [connected, setConnected] = useState(false);
+  if (authLoading) return <LoadingSkeleton />;
 
   return (
-    <div className="rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-background/80 backdrop-blur hover:shadow-md transition-all duration-200 group">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 dark:from-slate-950 dark:via-blue-950/20 dark:to-indigo-950/10">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
+
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Link href="/dashboard" className="text-sm text-foreground/50 hover:text-foreground transition-colors">← Dashboard</Link>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Student Matching</h1>
+          <p className="mt-2 text-foreground/60">
+            Find peers who understand what you're going through. Connect, share, and grow together.
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          {[
+            { label: 'Students Available', value: data?.total ?? '—' },
+            { label: 'Online Now', value: data?.totalOnline ?? '—' },
+            { label: 'Connected', value: data?.connected ?? 0 },
+          ].map(s => (
+            <div key={s.label} className="rounded-2xl border border-black/10 dark:border-white/10 p-4 bg-background/80 text-center">
+              <p className="text-2xl font-bold text-blue-600">{s.value}</p>
+              <p className="text-xs text-foreground/50 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Search + filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search by name, major, or interest…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 rounded-xl border border-black/10 dark:border-white/10 px-4 py-2.5 text-sm bg-background/80 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 mb-6">
+          {FILTERS.map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === f
+                  ? 'bg-blue-600 text-white'
+                  : 'border border-black/10 dark:border-white/10 hover:bg-black/[.04] dark:hover:bg-white/[.04] text-foreground/70'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 text-red-700 dark:text-red-400 p-4 text-sm">
+            ⚠️ {error}
+            <button onClick={fetchStudents} className="ml-2 underline">Retry</button>
+          </div>
+        )}
+
+        {/* Not logged in notice */}
+        {!user && !authLoading && (
+          <div className="text-center py-16">
+            <p className="text-lg font-semibold mb-2">Sign in to find peers</p>
+            <Link href="/auth" className="text-blue-600 hover:underline">Go to login →</Link>
+          </div>
+        )}
+
+        {/* Grid */}
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-64 rounded-2xl bg-black/[.04] dark:bg-white/[.04] animate-pulse" />
+            ))}
+          </div>
+        ) : data?.students.length === 0 ? (
+          <EmptyState
+            filter={filter}
+            search={search}
+            isOwn={!data || data.total === 0}
+          />
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {(data?.students || []).map(student => (
+              <StudentCard
+                key={student.id}
+                student={student}
+                connecting={connecting.has(student.id)}
+                onConnect={handleConnect}
+                onAIMatch={handleAIMatch}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* AI Modal */}
+        {aiModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setAiModal(null)}
+          >
+            <div
+              className="bg-background rounded-2xl border border-black/10 dark:border-white/10 p-6 max-w-md w-full shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="size-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                  {aiModal.student.avatar}
+                </div>
+                <div>
+                  <p className="font-semibold">{aiModal.student.name}</p>
+                  <p className="text-xs text-foreground/50">{aiModal.student.year} · {aiModal.student.major}</p>
+                </div>
+                <span className="ml-auto text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Mistral AI</span>
+              </div>
+
+              <h3 className="font-semibold mb-2">🤖 AI Compatibility Analysis</h3>
+              {aiModal.loading ? (
+                <div className="space-y-2">
+                  {[90, 70, 50].map(w => (
+                    <div key={w} className="h-3 bg-black/10 dark:bg-white/10 rounded animate-pulse" style={{ width: `${w}%` }} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-foreground/80 leading-relaxed">{aiModal.text}</p>
+              )}
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setAiModal(null)}
+                  className="flex-1 py-2 text-sm rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/[.04] transition-colors"
+                >
+                  Close
+                </button>
+                {aiModal.student.connectionStatus === 'none' && (
+                  <button
+                    onClick={() => { handleConnect(aiModal.student); setAiModal(null); }}
+                    className="flex-1 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                  >
+                    Connect with {aiModal.student.name.split(' ')[0]}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StudentCard({
+  student, connecting, onConnect, onAIMatch,
+}: {
+  student: Student;
+  connecting: boolean;
+  onConnect: (s: Student) => void;
+  onAIMatch: (s: Student) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-background/80 backdrop-blur hover:shadow-md transition-all duration-200">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -137,30 +323,31 @@ function StudentCard({ student, onConnect, onAIMatch }: {
 
       <p className="text-xs text-foreground/60 leading-relaxed mb-3 line-clamp-2">{student.bio}</p>
 
-      <div className="flex flex-wrap gap-1 mb-4">
-        {student.tags.map(t => (
+      <div className="flex flex-wrap gap-1 mb-3">
+        {student.tags.slice(0, 3).map(t => (
           <span key={t} className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
             {t}
           </span>
         ))}
+        {student.tags.length > 3 && (
+          <span className="text-xs text-foreground/40">+{student.tags.length - 3}</span>
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-3">
         <span className="text-sm">{student.mood}</span>
         <span className="text-xs text-foreground/40 flex-1">📍 {student.location}</span>
       </div>
 
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => { setConnected(true); onConnect(student.id); }}
-          disabled={connected}
-          className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${connected ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 cursor-default" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
-        >
-          {connected ? "✓ Connected!" : "Connect"}
-        </button>
+      <div className="flex gap-2">
+        <ConnectButton
+          status={student.connectionStatus}
+          connecting={connecting}
+          onConnect={() => onConnect(student)}
+        />
         <button
           onClick={() => onAIMatch(student)}
-          className="px-3 py-2 text-xs rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/[.04] dark:hover:bg-white/[.04] transition-colors"
+          className="px-3 py-2 text-xs rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/[.04] transition-colors"
           title="AI compatibility analysis"
         >
           🤖
@@ -170,156 +357,73 @@ function StudentCard({ student, onConnect, onAIMatch }: {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────
-export default function StudentMatchingPage() {
-  const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
-  const [connected, setConnected] = useState<number[]>([]);
-  const [aiModal, setAiModal] = useState<{ student: typeof ALL_STUDENTS[0]; text: string; loading: boolean } | null>(null);
-
-  const filtered = ALL_STUDENTS.filter(s => {
-    const matchesFilter =
-      filter === "All" ? true :
-      filter === "Online" ? s.online :
-      s.tags.some(t => t.toLowerCase().includes(filter.toLowerCase()));
-    const matchesSearch =
-      !search ||
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.major.toLowerCase().includes(search.toLowerCase()) ||
-      s.tags.some(t => t.toLowerCase().includes(search.toLowerCase()));
-    return matchesFilter && matchesSearch;
-  });
-
-  const handleAIMatch = async (student: typeof ALL_STUDENTS[0]) => {
-    setAiModal({ student, text: "", loading: true });
-    const text = await getMistralCompatibility(student);
-    setAiModal({ student, text, loading: false });
-  };
-
-  const handleConnect = (id: number) => {
-    setConnected(prev => [...prev, id]);
-  };
-
+function ConnectButton({
+  status, connecting, onConnect,
+}: {
+  status: Student['connectionStatus'];
+  connecting: boolean;
+  onConnect: () => void;
+}) {
+  if (status === 'connected') {
+    return (
+      <div className="flex-1 text-xs py-2 rounded-xl font-medium text-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+        ✓ Connected
+      </div>
+    );
+  }
+  if (status === 'pending') {
+    return (
+      <div className="flex-1 text-xs py-2 rounded-xl font-medium text-center bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+        ⏳ Pending
+      </div>
+    );
+  }
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 dark:from-slate-950 dark:via-blue-950/20 dark:to-indigo-950/10">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
+    <button
+      onClick={onConnect}
+      disabled={connecting}
+      className="flex-1 text-xs py-2 rounded-xl font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+    >
+      {connecting ? 'Connecting…' : 'Connect'}
+    </button>
+  );
+}
 
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Link href="/dashboard" className="text-sm text-foreground/50 hover:text-foreground transition-colors">← Dashboard</Link>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">Student Matching</h1>
-          <p className="mt-2 text-foreground/60">Find peers who understand what you're going through. AI-powered compatibility based on your wellbeing needs.</p>
+function EmptyState({ filter, search, isOwn }: { filter: string; search: string; isOwn: boolean }) {
+  if (isOwn) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-4xl mb-3">👥</p>
+        <p className="font-semibold text-lg mb-2">You're the first one here!</p>
+        <p className="text-sm text-foreground/60 mb-4">
+          Invite classmates to join CampusCare and start building peer connections.
+        </p>
+        <Link href="/dashboard" className="text-blue-600 hover:underline text-sm">← Back to dashboard</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="text-center py-16 text-foreground/40">
+      <p className="text-4xl mb-3">🔍</p>
+      <p className="font-medium">No students match your search</p>
+      <p className="text-sm mt-1">
+        {search ? `No results for "${search}"` : `No students with filter "${filter}"`}
+      </p>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 dark:from-slate-950 dark:to-blue-950/20">
+      <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
+        <div className="h-8 w-64 rounded bg-black/10 animate-pulse" />
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-2xl bg-black/[.04] animate-pulse" />)}
         </div>
-
-        {/* Stats bar */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          {[
-            { label: "Students Available", value: ALL_STUDENTS.length },
-            { label: "Online Now", value: ALL_STUDENTS.filter(s => s.online).length },
-            { label: "Connected", value: connected.length },
-          ].map(s => (
-            <div key={s.label} className="rounded-2xl border border-black/10 dark:border-white/10 p-4 bg-background/80 text-center">
-              <p className="text-2xl font-bold text-blue-600">{s.value}</p>
-              <p className="text-xs text-foreground/50 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-64 rounded-2xl bg-black/[.04] animate-pulse" />)}
         </div>
-
-        {/* Search + filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <input
-            type="text"
-            placeholder="Search by name, major, or interest…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="flex-1 rounded-xl border border-black/10 dark:border-white/10 px-4 py-2.5 text-sm bg-background/80 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-6">
-          {FILTERS.map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${filter === f ? "bg-blue-600 text-white" : "border border-black/10 dark:border-white/10 hover:bg-black/[.04] dark:hover:bg-white/[.04] text-foreground/70"}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        {/* Grid */}
-        {filtered.length === 0 ? (
-          <div className="text-center py-16 text-foreground/40">
-            <p className="text-4xl mb-3">🔍</p>
-            <p className="font-medium">No students match your search</p>
-            <p className="text-sm mt-1">Try a different filter or search term</p>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map(student => (
-              <StudentCard
-                key={student.id}
-                student={student}
-                onConnect={handleConnect}
-                onAIMatch={handleAIMatch}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* AI Compatibility Modal */}
-        {aiModal && (
-          <div
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setAiModal(null)}
-          >
-            <div
-              className="bg-background rounded-2xl border border-black/10 dark:border-white/10 p-6 max-w-md w-full shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="size-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
-                  {aiModal.student.avatar}
-                </div>
-                <div>
-                  <p className="font-semibold">{aiModal.student.name}</p>
-                  <p className="text-xs text-foreground/50">{aiModal.student.year} · {aiModal.student.major}</p>
-                </div>
-                <span className="ml-auto text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Mistral AI</span>
-              </div>
-
-              <h3 className="font-semibold mb-2">🤖 AI Compatibility Analysis</h3>
-
-              {aiModal.loading ? (
-                <div className="space-y-2">
-                  {[90, 70, 50].map(w => (
-                    <div key={w} className="h-3 bg-black/10 dark:bg-white/10 rounded animate-pulse" style={{ width: `${w}%` }} />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-foreground/80 leading-relaxed">{aiModal.text}</p>
-              )}
-
-              <div className="flex gap-3 mt-5">
-                <button
-                  onClick={() => setAiModal(null)}
-                  className="flex-1 py-2 text-sm rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/[.04] dark:hover:bg-white/[.04] transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => { handleConnect(aiModal.student.id); setAiModal(null); }}
-                  className="flex-1 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
-                >
-                  Connect with {aiModal.student.name.split(" ")[0]}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
