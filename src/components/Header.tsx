@@ -30,6 +30,7 @@ export default function Header() {
           <Link className="hover:text-foreground transition-colors" href="/">Home</Link>
           <Link className="hover:text-foreground transition-colors" href="/chat">Chat</Link>
           <Link className="hover:text-foreground transition-colors" href="/media">Wellness Hub</Link>
+          <Link className="hover:text-foreground transition-colors" href="/mood">Mood Vision</Link>
           {user && (
             <>
               <Link className="hover:text-foreground transition-colors" href="/dashboard">Dashboard</Link>

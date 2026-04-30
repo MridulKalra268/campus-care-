@@ -251,6 +251,7 @@ Give a warm, personalized 2-3 sentence wellbeing insight and one specific action
             { label: 'Avg Mood', value: avgMood.toFixed(1), unit: '/10', color: avgMood >= 7 ? 'text-emerald-600' : avgMood >= 5 ? 'text-amber-600' : 'text-red-500' },
             { label: 'Chat Sessions', value: `${stats.totalSessions}`, unit: 'total', color: 'text-indigo-600' },
             { label: 'Goals Done', value: `${stats.completedGoals}`, unit: `/${stats.totalGoals}`, color: 'text-amber-600' },
+            { label: 'Mood Vision', href: '/mood', emoji: '🎭' },
           ].map((s) => (
             <div key={s.label} className="rounded-2xl border border-black/10 dark:border-white/10 p-5 bg-background/80 backdrop-blur">
               <p className="text-xs text-foreground/50 font-medium uppercase tracking-wider">{s.label}</p>
